@@ -16,8 +16,18 @@ go mod tidy
 ```
 
 ## Executar o projeto
+### No branch MAIN, em GO:
 ```bash
 go run main.go
+```
+### No branch WEAVER, em ServiceWeaver:
+```bash
+weaver multi deploy weaver.toml
+```
+OBS: Caso qualquer código tenha sido alterado, é necessário rodar os seguintes comandos, antes de executar:
+```bash
+weaver generate ./...
+go build -o productions.exe
 ```
 
 ## Endpoints

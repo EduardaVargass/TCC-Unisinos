@@ -1,0 +1,6 @@
+[serviceweaver]
+binary = "./productions.exe"
+[multi]
+listeners.production = {address = "localhost:12345"}
+[single]
+listeners.production = {address = "localhost:12345"}
