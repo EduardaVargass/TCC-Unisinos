@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/ServiceWeaver/weaver"
 )
 
 type ProductionCycleComponent interface {
@@ -24,9 +26,11 @@ type ProductionCycle struct {
 	IdealCycleTime    float64   `json:"idealCycleTime"`
 	ProductionTime    float64   `json:"productionTime"`
 	Timestamp         time.Time `json:"timestamp"`
+	weaver.AutoMarshal
 }
 
 type ProductionCycleComponentStruct struct {
+	weaver.Implements[ProductionCycleComponent]
 	db *sql.DB `json:"-"`
 }
 

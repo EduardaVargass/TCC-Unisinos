@@ -3,37 +3,37 @@ package main
 import (
 	factory "TCC-UNISINOS/components/factory"
 	machine "TCC-UNISINOS/components/machine"
-	oee "TCC-UNISINOS/components/oee"
 	productioncycle "TCC-UNISINOS/components/productionCycle"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
+	"github.com/ServiceWeaver/weaver"
 	"github.com/go-chi/chi"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
-	ctx := context.Background()
+	if err := weaver.Run(context.Background(), serve); err != nil {
+		log.Fatal(err)
+	}
+}
 
-	productionCyclesComponent := productioncycle.ProductionCycleComponentStruct{}
-	oeeComponent := oee.OEEComponentStruct{}
-	machinesComponent := machine.MachineComponentStruct{}
-	factoryComponent := factory.FactoryComponentStruct{}
+type app struct {
+	weaver.Implements[weaver.Main]
+	productionCyclesComponent weaver.Ref[productioncycle.ProductionCycleComponent]
+	machinesComponent         weaver.Ref[machine.MachineComponent]
+	factoryComponent          weaver.Ref[factory.FactoryComponent]
+	production                weaver.Listener
+}
 
-	if err := productionCyclesComponent.Init(ctx); err != nil {
-		log.Fatal(err)
-	}
-	if err := machinesComponent.Init(ctx, productionCyclesComponent, oeeComponent); err != nil {
-		log.Fatal(err)
-	}
-	if err := factoryComponent.Init(ctx, machinesComponent); err != nil {
-		log.Fatal(err)
-	}
+func serve(ctx context.Context, app *app) error {
+	var productionCyclesComponent productioncycle.ProductionCycleComponent = app.productionCyclesComponent.Get()
+	var machinesComponent machine.MachineComponent = app.machinesComponent.Get()
+	var factoryComponent factory.FactoryComponent = app.factoryComponent.Get()
 
 	r := chi.NewRouter()
 	r.Post("/production/productionCycles", func(w http.ResponseWriter, r *http.Request) {
@@ -171,8 +171,5 @@ func main() {
 
 	otelHandler := otelhttp.NewHandler(r, "production")
 
-	fmt.Println("Server is running on port :12345")
-	if err := http.ListenAndServe(":12345", otelHandler); err != nil {
-		log.Fatal(err)
-	}
+	return http.Serve(app.production, otelHandler)
 }

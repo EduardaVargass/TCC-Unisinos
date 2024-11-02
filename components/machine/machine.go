@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/ServiceWeaver/weaver"
 )
 
 type MachineComponent interface {
@@ -22,18 +24,17 @@ type Machine struct {
 	MachineID     int     `json:"machineID"`
 	Name          string  `json:"name"`
 	AvailableTime float64 `json:"availableTime"`
+	weaver.AutoMarshal
 }
 
-type MachineComponentStruct struct {
+type machineComponent struct {
+	weaver.Implements[MachineComponent]
+	p  weaver.Ref[productioncycle.ProductionCycleComponent]
+	o  weaver.Ref[oee.OEEComponent]
 	db *sql.DB `json:"-"`
-	p  productioncycle.ProductionCycleComponentStruct
-	o  oee.OEEComponentStruct
 }
 
-func (m *MachineComponentStruct) Init(ctx context.Context, p productioncycle.ProductionCycleComponentStruct, o oee.OEEComponentStruct) error {
-	m.p = p
-	m.o = o
-
+func (m *machineComponent) Init(ctx context.Context) error {
 	db, err := sql.Open("sqlite3", "./productions.db")
 	if err != nil {
 		return fmt.Errorf("Erro ao abrir banco de dados: %w", err)
@@ -42,7 +43,7 @@ func (m *MachineComponentStruct) Init(ctx context.Context, p productioncycle.Pro
 	return nil
 }
 
-func (m *MachineComponentStruct) Add(ctx context.Context, machine Machine) error {
+func (m *machineComponent) Add(ctx context.Context, machine Machine) error {
 	_, err := m.db.Exec("INSERT INTO machine (name, availableTime) VALUES (?, ?)", machine.Name, machine.AvailableTime)
 	if err != nil {
 		return err
@@ -50,7 +51,7 @@ func (m *MachineComponentStruct) Add(ctx context.Context, machine Machine) error
 	return nil
 }
 
-func (m *MachineComponentStruct) Update(ctx context.Context, machineID int, machine Machine) (Machine, error) {
+func (m *machineComponent) Update(ctx context.Context, machineID int, machine Machine) (Machine, error) {
 	_, err := m.db.Exec(
 		"UPDATE machine SET name = ?, availableTime = ? WHERE machineID = ?",
 		machine.Name,
@@ -69,7 +70,7 @@ func (m *MachineComponentStruct) Update(ctx context.Context, machineID int, mach
 	return updatedMachine, nil
 }
 
-func (m *MachineComponentStruct) Get(ctx context.Context) ([]Machine, error) {
+func (m *machineComponent) Get(ctx context.Context) ([]Machine, error) {
 	var machines []Machine
 	query := "SELECT machineID, name, availableTime FROM machine"
 	res, err := m.db.QueryContext(ctx, query)
@@ -87,7 +88,7 @@ func (m *MachineComponentStruct) Get(ctx context.Context) ([]Machine, error) {
 	return machines, nil
 }
 
-func (m *MachineComponentStruct) GetByMachineID(ctx context.Context, machineID int) (Machine, error) {
+func (m *machineComponent) GetByMachineID(ctx context.Context, machineID int) (Machine, error) {
 	var machine Machine
 	query := "SELECT machineID, name, availableTime FROM machine WHERE machineID = ?"
 	res := m.db.QueryRowContext(ctx, query, machineID)
@@ -101,13 +102,13 @@ func (m *MachineComponentStruct) GetByMachineID(ctx context.Context, machineID i
 	return machine, nil
 }
 
-func (m *MachineComponentStruct) CalculateOEE(ctx context.Context, machineID int) (float64, error) {
+func (m *machineComponent) CalculateOEE(ctx context.Context, machineID int) (float64, error) {
 	availableTime, err := m.calculateAvailableTime(ctx, machineID)
 	if err != nil {
 		return 0, err
 	}
 
-	productionCycles, err := m.p.GetByMachineID(ctx, machineID)
+	productionCycles, err := m.p.Get().GetByMachineID(ctx, machineID)
 	if err != nil {
 		return 0, err
 	}
@@ -122,20 +123,20 @@ func (m *MachineComponentStruct) CalculateOEE(ctx context.Context, machineID int
 		productionData.GoodCount += cycle.GoodCount
 	}
 
-	resultOEE, err := m.o.CalculateOEE(ctx, productionData)
+	resultOEE, err := m.o.Get().CalculateOEE(ctx, productionData)
 	if err != nil {
 		return 0, err
 	}
 	return resultOEE, nil
 }
 
-func (m *MachineComponentStruct) calculateAvailableTime(ctx context.Context, machineID int) (float64, error) {
+func (m *machineComponent) calculateAvailableTime(ctx context.Context, machineID int) (float64, error) {
 	machine, err := m.GetByMachineID(ctx, machineID)
 	if err != nil {
 		return 0, err
 	}
 
-	productionCycle, err := m.p.GetFirstCycleByMachineID(ctx, machineID)
+	productionCycle, err := m.p.Get().GetFirstCycleByMachineID(ctx, machineID)
 	if err != nil {
 		return 0, err
 	}
